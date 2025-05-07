@@ -1,0 +1,265 @@
+---
+title: "Investigation of NYC Restaurant Inspection Data"
+author: "Chan Tsz Shun"
+date: "2025-04-12"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Introduction
+
+The New York City Department of Health and Mental Hygiene (DOHMH) is tasked with protecting public health by regularly inspecting food service establishments. These inspections evaluate key aspects of restaurant operations-including hygiene, food handling, and sanitation-to ensure compliance with city health codes (NYC DOHMH, 2023).
+
+Given the diversity of restaurants across New York City’s five boroughs, each with its own operational characteristics and culinary traditions, inspection outcomes can vary significantly. Factors such as geographic location, cuisine type, and restaurant size may all influence compliance rates and the frequency of specific violations (Kim & Kim, 2019). Understanding these variations is essential for developing targeted interventions and policies to enhance food safety and public health.
+
+The aim of this analysis is to examine publicly available restaurant inspection data from the NYC Department of Health and Mental Hygiene to identify patterns and trends in inspection results. Specifically, the analysis focuses on the distribution of inspection scores across different boroughs and cuisine types.
+
+## Hypotheses:
+
+1.  Inspection scores will differ across boroughs and be associated with differences in median income.
+
+2.  Restaurants with higher risk profiles-such as those serving raw or undercooked ingredients-will have a higher incidence of critical violations.
+
+## Data Description
+
+This analysis uses two main data sets. The first contains detailed information about restaurant inspections, including restaurant name, location (borough, street, zipcode), cuisine type, inspection date, violation codes, scores, and grades. The data is longitudinal, with multiple inspections per restaurant. For this study, the focus is on the columns for borough, cuisine description, and inspection score to explore their relationships.
+
+The second data set provides median income data across boroughs, sourced from the Citizens' Committee for Children of New York (2025). A bar chart illustrates the distribution of median income by borough for 2023.
+
+For the first dataset, I will mostly use the data in column Boro, Cuisine Description, and Score. To investigate their relationship.
+
+```{r}
+
+library(tidyverse)
+library(conflicted)
+library(dplyr)
+conflicts_prefer(dplyr::filter)
+
+
+nyc_inspections <- read.csv("DOHMH_New_York_City_Restaurant_Inspection_Results.csv", stringsAsFactors = FALSE)
+boroughincome <- read.csv("Median Incomes.csv", stringsAsFactors = FALSE)
+
+five_boroughs <- c("Manhattan", "Queens", "Staten Island", "Brooklyn", "Bronx")
+
+nyc_inspections$INSPECTION.DATE <- as.Date(nyc_inspections$INSPECTION.DATE, format = "%m/%d/%Y")
+nyc_inspections$GRADE.DATE <- as.Date(nyc_inspections$GRADE.DATE, format = "%m/%d/%Y")
+
+```
+
+The second set of data is viewing the income data across Boroughs. According to Citizens' Committee for Children of New York(Citizens' Committee for Children of New York, 2025). The following bar chart show the income distribution through Boroughs
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+
+data_2023_all <- boroughincome %>%
+  filter(TimeFrame == 2023,
+         Household.Type == "All Households",
+         Location %in% five_boroughs) %>%
+  mutate(
+    Data = as.numeric(Data), 
+    Location = factor(Location, levels = five_boroughs)  
+  )
+
+
+ggplot(data_2023_all, aes(x = Location, y = Data, fill = Location)) +
+  geom_bar(stat = "identity") +
+  labs(title = "2023 Median Income for All Households in NYC Five Boroughs",
+       x = "Borough",
+       y = "Median Income (Dollars)") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, hjust = 1))  
+
+
+```
+
+## Data Visualization
+
+#### Plot inspection scores distribution by borough
+
+```{r}
+ggplot(nyc_inspections, aes(x = BORO, y = SCORE, fill = BORO)) +
+geom_boxplot(alpha = 1) +
+labs(title = "Inspection Score Distribution by Borough",
+x = "Borough",
+y = "Inspection Score") +
+theme_minimal() +
+theme(legend.position = "none")
+```
+
+A box plot of inspection scores by borough reveals that Queens has the highest mean score at 25.56, while Staten Island has the lowest at 21.17. The standard deviations are relatively high across all boroughs, ranging from approximately 15 to 19, indicating considerable variability in inspection scores within each borough.
+
+```{r}
+
+nyc_inspections_filtered <- nyc_inspections %>%
+  filter(!is.na(SCORE))
+
+
+borough_summary <- nyc_inspections_filtered %>%
+  group_by(BORO) %>%
+  summarise(
+    Mean_Score = mean(SCORE, na.rm = TRUE),
+    Median_Score = median(SCORE, na.rm = TRUE),
+    SD_Score = sd(SCORE, na.rm = TRUE),
+    Q1_Score = quantile(SCORE, 0.25, na.rm = TRUE),
+    Q3_Score = quantile(SCORE, 0.75, na.rm = TRUE),
+    Min_Score = min(SCORE, na.rm = TRUE),
+    Max_Score = max(SCORE, na.rm = TRUE),
+    Count = n()
+  )
+
+print(borough_summary)
+```
+
+The relationship between median income and mean inspection scores across the five boroughs is very weak and statistically insignificant. Linear regression analysis further shows that median income does not explain the variation in inspection scores. Therefore, Hypothesis 1 is not supported.
+
+### Linear Regression of Inspection Score and Income by Borough
+
+Ranking the boroughs from riskiest to safest based on mean inspection scores yields the order: Queens, Brooklyn, Manhattan, Bronx, and Staten Island. In contrast, the income ranking from lowest to highest is: Bronx, Brooklyn, Queens, Staten Island, and Manhattan. This comparison demonstrates that there is no direct correlation between borough income levels and restaurant inspection scores; higher-income boroughs do not necessarily have better inspection outcomes.
+
+```{r}
+
+
+library(ggplot2)
+
+
+nyc_data <- data.frame(
+  Borough = c("Manhattan", "Staten Island", "Queens", "Brooklyn", "Bronx"),
+  Mean_Inspection_Score = c(23.53905, 21.16555, 25.56238, 24.60421, 22.85461),
+  Median_Income = c(101078, 95543, 81929, 76912, 46838)
+)
+
+
+ggplot(nyc_data, aes(x = Median_Income, y = Mean_Inspection_Score, label = Borough)) +
+  geom_point(size = 3, color = "blue") +
+  geom_text(vjust = -1, hjust = 0.5) +
+  labs(title = "Income vs Inspection Score by Borough",
+       x = "Median Income (USD)",
+       y = "Mean Inspection Score") +
+  theme_minimal()
+
+
+cor_test_result <- cor.test(nyc_data$Median_Income, nyc_data$Mean_Inspection_Score)
+print(cor_test_result)
+
+
+model <- lm(Mean_Inspection_Score ~ Median_Income, data = nyc_data)
+summary(model)
+
+
+```
+
+A correlation analysis confirms that the relationship between median income and mean inspection scores across the five boroughs is very weak and statistically insignificant. Linear regression analysis further shows that median income does not explain the variation in inspection scores. Therefore, Hypothesis 1 is not supported.
+
+### Investigate another factor - Cuisines
+
+#### Calculate average score by cuisine and plot top 10 cuisines with highest average scores
+
+```{r}
+# Calculate average scores and counts for each cuisine
+avg_scores <- nyc_inspections %>%
+  group_by(CUISINE.DESCRIPTION) %>%
+  summarise(avg_score = mean(SCORE, na.rm = TRUE),
+            count = n()) %>%
+  filter(!is.na(CUISINE.DESCRIPTION) & CUISINE.DESCRIPTION != "") %>%
+  arrange(desc(avg_score))
+
+# Top 25 Cuisines by Average Inspection Score
+top_25_cuisines <- avg_scores %>%
+  slice_head(n = 25)
+
+ggplot(top_25_cuisines, aes(x = reorder(CUISINE.DESCRIPTION, avg_score), y = avg_score, fill = avg_score)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Top 25 Cuisines by Average Inspection Score",
+       x = "Cuisine",
+       y = "Average Score") +
+  scale_fill_gradient(low = "green", high = "red") +
+  theme_minimal()
+
+# Bottom 25 Cuisines by Average Inspection Score
+bottom_25_cuisines <- avg_scores %>%
+  slice_tail(n = 25)
+
+ggplot(bottom_25_cuisines, aes(x = reorder(CUISINE.DESCRIPTION, avg_score), y = avg_score, fill = avg_score)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "Bottom 25 Cuisines by Average Inspection Score",
+       x = "Cuisine",
+       y = "Average Score") +
+  scale_fill_gradient(low = "red", high = "green") +
+  theme_minimal()
+```
+
+The analysis of average inspection scores by cuisine reveals a considerable range, from a high of 37.04 for Bangladeshi cuisine to a low of 10.00 for both Chimichurri and Haute Cuisine. While the latter two cuisines have a limited number of samples, with single-digit figures, the donut category, which scores 14.28 and has a substantial sample size of 5120, further underscores the breadth of this range. This wide variation suggests that cuisine type is a strong predictor of inspection outcomes.
+
+Cuisines such as Bangladeshi, African, and Egyptian tend to have higher average scores, indicating more violations. This may be due to their reliance on traditional cooking methods and on-site food preparation, which require meticulous hygiene and handling (Shukri et al., 2018). These cuisines often use fresh, unprocessed ingredients and complex cooking processes, increasing the risk of contamination if not managed properly. In contrast, cuisines like donuts and hamburgers rely more on pre-processed ingredients and simpler preparation methods, which can reduce certain types of violations.
+
+### Prepare data for linear modeling
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(broom)
+
+# 1. Prepare model as before
+model_data <- nyc_inspections %>%
+  mutate(
+    BORO = factor(BORO),
+    CUISINE.DESCRIPTION = factor(CUISINE.DESCRIPTION)
+  ) %>%
+  filter(!is.na(SCORE))  # Remove rows with missing SCORE
+
+model <- lm(SCORE ~ BORO + CUISINE.DESCRIPTION, data = model_data)
+
+# 2. Create and print a formatted table with kableExtra
+model_summary <- summary(model)
+
+# Tidy the coefficients for kable
+coef_table <- tidy(model, conf.int = TRUE)
+
+kable(coef_table, caption = "Model Coefficients", digits = 3) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Show the full summary object as text for reference
+print(model_summary)
+
+# Prepare model as before
+model_data <- nyc_inspections %>%
+  mutate(
+    BORO = factor(BORO),
+    CUISINE.DESCRIPTION = factor(CUISINE.DESCRIPTION)
+  ) %>%
+  filter(!is.na(SCORE))
+
+model <- lm(SCORE ~ BORO + CUISINE.DESCRIPTION, data = model_data)
+
+# Extract coefficients from the model summary
+coef_table <- broom::tidy(model)
+
+# Format the table with kableExtra
+kable(coef_table, caption = "Model Coefficients") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+
+```
+
+The linear model confirms that cuisine type has a much greater impact on inspection scores than borough. The model estimates that cuisine can account for score differences ranging from approximately -14.27 to 18.9 points, while borough accounts for only -0.7 to 2.2 points. This indicates that food handling practices associated with specific cuisines are more closely linked to inspection outcomes than neighborhood income levels.
+
+## **Conclusion**
+
+Hypothesis 1 is not supported, as no consistent relationship was found between inspection scores and median income across the boroughs. Conversely, Hypothesis 2 is supported: restaurants with higher risk profiles-such as those serving raw or undercooked foods-exhibit a greater incidence of critical violations. This suggests that food handling practices are a stronger determinant of inspection outcomes than the income levels of the neighborhoods in which restaurants are located.
+
+## References
+
+NYC Department of Health and Mental Hygiene. (2023). Restaurant inspection data. NYC Open Data Portal. Retrieved from <https://opendata.cityofnewyork.us>
+
+Shukri, W. H. Z., Low, Y. P., & Rahijan, A. W. (2018). Ethnic cuisine structure and food handlers’ hygiene practices at rural Minangkabau and Terengganu homestays. Agriculture: Towards a Better Future, 104.
+
+Citizens' Committee for Children of New York, Inc. (2025). Data download. Retrieved from <https://data.cccnewyork.org/data/download#0/66>
+
+Kim, D., & Kim, S. (2019). Factors influencing food safety compliance in restaurants: A multi-level analysis. Food Control, 102, 1–8. <https://doi.org/10.1016/j.foodcont.2019.03.014>
