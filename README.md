@@ -415,7 +415,7 @@ Hypothesis 1 is not supported, as no consistent relationship was found between i
 
 ## References
 
-NYC Department of Health and Mental Hygiene. (2023). Restaurant inspection data. NYC Open Data Portal. Retrieved from <https://opendata.cityofnewyork.us>
+NYC Department of Health and Mental Hygiene. (2023). Restaurant inspection data. NYC Open Data Portal. Retrieved from <https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j/about_data>
 
 Shukri, W. H. Z., Low, Y. P., & Rahijan, A. W. (2018). Ethnic cuisine structure and food handlers’ hygiene practices at rural Minangkabau and Terengganu homestays. Agriculture: Towards a Better Future, 104.
 
